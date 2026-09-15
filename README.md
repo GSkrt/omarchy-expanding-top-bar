@@ -1,5 +1,10 @@
 # Expanding Top Bar
 
+If you've ever mashed your face up against the monitor
+trying to tell Omarchy's tiny bar icons apart — is that bluetooth or audio,
+who can say — congratulations, you're exactly who this plugin was built for.
+Hover away.
+
 An [Omarchy](https://omarchy.org/) shell bar plugin, cloned from the
 built-in `omarchy.bar`, that grows thicker and scales up its widgets/icons
 while the pointer is hovering over it, then animates back down when the
@@ -18,12 +23,6 @@ All three effects animate together over ~140ms.
 No external dependencies — it only uses APIs already provided by
 `omarchy-shell`.
 
-## Known limitations
-
-If you've ever mashed your face up against the monitor
-trying to tell Omarchy's tiny bar icons apart — is that bluetooth or audio,
-who can say — congratulations, you're exactly who this plugin was built for.
-Hover away.
 
 (Set `hoverExpand` to `0` in `shell.json` if you'd rather the bar just sit
 there — see [Configuring](#configuring).)
