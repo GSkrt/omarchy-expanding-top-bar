@@ -4,7 +4,7 @@
   "name": "Expanding Top Bar",
   "version": "1.0.0",
   "author": "Gregor Skrt",
-  "description": "Omarchy bar that grows thicker and scales its icons on hover",
+  "description": "Omarchy bar that grows thicker and scales its icons on hover if you ever wandered what those icons are up there.",
   "kinds": [
     "bar"
   ],
