@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "id": "expanding-top-bar",
+  "id": "io.github.gskrt.expanding-top-bar",
   "name": "Expanding Top Bar",
   "version": "1.0.0",
-  "author": "",
+  "author": "Gregor Skrt",
   "description": "Omarchy bar that grows thicker and scales its icons on hover",
   "kinds": [
     "bar"

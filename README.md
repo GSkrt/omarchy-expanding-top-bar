@@ -15,18 +15,31 @@ pointer leaves.
 
 All three effects animate together over ~140ms.
 
+No external dependencies — it only uses APIs already provided by
+`omarchy-shell`.
+
 ## Install
 
 ```bash
-omarchy plugin add https://github.com/<your-username>/omarchy-expanding-top-bar.git --enable
+omarchy plugin add https://github.com/GSkrt/omarchy-expanding-top-bar.git --enable
 ```
 
-This clones the plugin into `~/.config/omarchy/plugins/expanding-top-bar/`
-and switches your bar to it. To go back to the stock bar:
+This clones the plugin into
+`~/.config/omarchy/plugins/io.github.gskrt.expanding-top-bar/` and switches
+your bar to it.
+
+## Remove
+
+To switch back to the stock bar and delete this plugin:
 
 ```bash
 omarchy plugin enable omarchy.bar
+omarchy plugin remove io.github.gskrt.expanding-top-bar
 ```
+
+(Switch back to `omarchy.bar` first — removing the currently active bar
+plugin out from under yourself isn't necessary, but doing it in this order
+avoids a moment with no bar selected.)
 
 ## Tuning
 
