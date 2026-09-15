@@ -20,20 +20,14 @@ No external dependencies — it only uses APIs already provided by
 
 ## Known limitations
 
-This is a mouse-hover effect, so it is, definitionally, a plugin for people
-who have both a mouse and eyes pointed at the screen at the time. Accessibility
-statement: if you're on a small screen, you may want to get glasses. If
-you're blind, you were never going to see this anyway, so the bar growing on
-hover changes literally nothing for you either way — truly the most
-accessible feature in this plugin.
+If you've ever mashed your face up against the monitor
+trying to tell Omarchy's tiny bar icons apart — is that bluetooth or audio,
+who can say — congratulations, you're exactly who this plugin was built for.
+Hover away.
 
 (Set `hoverExpand` to `0` in `shell.json` if you'd rather the bar just sit
 there — see [Configuring](#configuring).)
 
-On the flip side: if you've ever mashed your face up against the monitor
-trying to tell Omarchy's tiny bar icons apart — is that bluetooth or audio,
-who can say — congratulations, you're exactly who this plugin was built for.
-Hover away.
 
 ## Install
 
