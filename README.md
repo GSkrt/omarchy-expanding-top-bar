@@ -41,14 +41,36 @@ omarchy plugin remove io.github.gskrt.expanding-top-bar
 plugin out from under yourself isn't necessary, but doing it in this order
 avoids a moment with no bar selected.)
 
-## Tuning
+## Configuring
 
-All the tunable bits live in `Bar.qml`:
+Set `bar.hoverExpand` (pixels) in `~/.config/omarchy/shell.json` — it hot-reloads on save, no restart needed:
 
-- `barSizeHoverBonus` — how much thicker the bar gets on hover (default `Style.space(10)`).
-- `scale: root.barHovered ? 1.15 : 1.0` (on `ModuleSlot`) — the icon scale factor.
-- `hoverModuleGap` — the extra spacing between widgets on hover.
-- The `Behavior` animation blocks next to each of the above — duration/easing.
+```json
+{
+  "bar": {
+    "hoverExpand": 10
+  }
+}
+```
+
+This is the one knob that controls the whole hover effect. Everything else
+derives from it, so nothing drifts out of sync:
+
+- The bar grows thicker by exactly `hoverExpand` px on hover.
+- Icons scale up by `1 + hoverExpand * 0.015` (10px → 1.15x, matching the default look).
+- The gap opened up between widgets is `hoverExpand * 1.4` px (10px → 14px).
+
+Set it to `0` to disable the effect entirely (the bar becomes static). Larger
+values make a more dramatic hover effect; the growth is unbounded, so very
+large values will look extreme.
+
+### Further tuning
+
+The 1.5%-scale-per-px and 1.4px-gap-per-px ratios, plus the ~140ms hover
+animation duration/easing, are constants in `Bar.qml` (search for
+`hoverIconScale`, `hoverModuleGap`, and the `Behavior on` blocks next to
+`hoverExpand`) if you want to change the relationship itself rather than
+just the overall amount.
 
 ---
 

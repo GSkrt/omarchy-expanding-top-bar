@@ -554,13 +554,20 @@ Item {
 
   readonly property bool vertical: position === "left" || position === "right"
   readonly property int barSizeBase: vertical ? Style.bar.sizeVertical : Style.bar.sizeHorizontal
+  // Single user-tunable knob (bar.hoverExpand in shell.json, in px) driving
+  // every hover effect below, so the bar's thickness, the icon scale, and
+  // the module spacing all grow together and can't drift out of sync.
+  property real hoverExpand: 10
   // Grows the bar's reserved screen space while the pointer is over it.
-  readonly property int barSizeHoverBonus: Style.space(10)
-  property real barSize: barSizeBase + (barHovered ? barSizeHoverBonus : 0)
+  property real barSize: barSizeBase + (barHovered ? hoverExpand : 0)
   Behavior on barSize { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
-  // Extra breathing room between modules so the hover scale on ModuleSlot
-  // (below) doesn't visually overlap neighbouring icons/text.
-  property real hoverModuleGap: barHovered ? Style.space(14) : 0
+  // Icon scale derived from hoverExpand (1.5% scale per px of expansion, so
+  // the default 10px expansion gives the original 1.15x icon scale).
+  readonly property real hoverIconScale: 1 + hoverExpand * 0.015
+  // Extra breathing room between modules so the icon scale above doesn't
+  // visually overlap neighbouring icons/text. Also derived from hoverExpand
+  // (1.4px of gap per px of expansion, matching the original 14px default).
+  property real hoverModuleGap: barHovered ? hoverExpand * 1.4 : 0
   Behavior on hoverModuleGap { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
 
   function normalizePosition(value) {
@@ -592,6 +599,8 @@ Item {
     position = normalizePosition(config.position)
     setRequestedTransparency(config.transparent === true)
     centerAnchor = Util.canonicalWidgetId(config.centerAnchor || "")
+    hoverExpand = typeof config.hoverExpand === "number" && config.hoverExpand >= 0
+      ? config.hoverExpand : 10
 
     // layoutEntries feeds plain JS arrays to the module Repeaters, and QML
     // cannot diff those: reassigning layoutConfig rebuilds every widget on
@@ -1831,7 +1840,7 @@ Item {
 
     // Purely visual: scaling doesn't touch implicitWidth/Height, so neighbouring
     // slots don't reflow when this grows.
-    scale: root.barHovered ? 1.15 : 1.0
+    scale: root.barHovered ? root.hoverIconScale : 1.0
     transformOrigin: Item.Center
     Behavior on scale { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
 
