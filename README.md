@@ -30,6 +30,11 @@ accessible feature in this plugin.
 (Set `hoverExpand` to `0` in `shell.json` if you'd rather the bar just sit
 there — see [Configuring](#configuring).)
 
+On the flip side: if you've ever mashed your face up against the monitor
+trying to tell Omarchy's tiny bar icons apart — is that bluetooth or audio,
+who can say — congratulations, you're exactly who this plugin was built for.
+Hover away.
+
 ## Install
 
 ```bash
