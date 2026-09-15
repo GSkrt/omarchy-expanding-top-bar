@@ -43,34 +43,48 @@ avoids a moment with no bar selected.)
 
 ## Configuring
 
-Set `bar.hoverExpand` (pixels) in `~/.config/omarchy/shell.json` — it hot-reloads on save, no restart needed:
+Open `~/.config/omarchy/shell.json` and add (or edit) `hoverExpand` and
+`hoverAnimationMs` under the top-level `bar` key. Both hot-reload on save —
+no restart needed:
 
 ```json
 {
   "bar": {
-    "hoverExpand": 10
+    "hoverExpand": 10,
+    "hoverAnimationMs": 140
   }
 }
 ```
 
-This is the one knob that controls the whole hover effect. Everything else
-derives from it, so nothing drifts out of sync:
+If you installed with `omarchy plugin add --enable`, `shell.json` won't have
+these keys yet — Omarchy never writes plugin defaults into your config file
+(it's yours, no deep-merge), so the plugin just falls back to the defaults
+shown above until you add them yourself.
+
+**`hoverExpand`** (pixels, default `10`) is the one knob that controls the
+whole grow effect. Everything else derives from it, so nothing drifts out of
+sync:
 
 - The bar grows thicker by exactly `hoverExpand` px on hover.
 - Icons scale up by `1 + hoverExpand * 0.015` (10px → 1.15x, matching the default look).
 - The gap opened up between widgets is `hoverExpand * 1.4` px (10px → 14px).
 
-Set it to `0` to disable the effect entirely (the bar becomes static). Larger
-values make a more dramatic hover effect; the growth is unbounded, so very
-large values will look extreme.
+Set it to `0` to disable the grow effect entirely (the bar becomes static).
+Larger values make a more dramatic hover effect; the growth is unbounded, so
+very large values will look extreme.
+
+**`hoverAnimationMs`** (milliseconds, default `140`) is how long the
+grow/shrink transition takes when the pointer enters or leaves the bar.
+Lower is snappier, higher is more of a slow reveal. Set it to `0` for an
+instant, unanimated jump.
 
 ### Further tuning
 
-The 1.5%-scale-per-px and 1.4px-gap-per-px ratios, plus the ~140ms hover
-animation duration/easing, are constants in `Bar.qml` (search for
+The 1.5%-scale-per-px and 1.4px-gap-per-px ratios (the fixed relationship
+between `hoverExpand` and the icon/spacing effects, rather than the overall
+amount), and the easing curve, are constants in `Bar.qml` — search for
 `hoverIconScale`, `hoverModuleGap`, and the `Behavior on` blocks next to
-`hoverExpand`) if you want to change the relationship itself rather than
-just the overall amount.
+`hoverExpand` and `hoverAnimationDuration`.
 
 ---
 

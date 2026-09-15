@@ -558,9 +558,11 @@ Item {
   // every hover effect below, so the bar's thickness, the icon scale, and
   // the module spacing all grow together and can't drift out of sync.
   property real hoverExpand: 10
+  // How long the hover grow/shrink transitions take (bar.hoverAnimationMs).
+  property int hoverAnimationDuration: 140
   // Grows the bar's reserved screen space while the pointer is over it.
   property real barSize: barSizeBase + (barHovered ? hoverExpand : 0)
-  Behavior on barSize { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
+  Behavior on barSize { NumberAnimation { duration: root.hoverAnimationDuration; easing.type: Easing.OutCubic } }
   // Icon scale derived from hoverExpand (1.5% scale per px of expansion, so
   // the default 10px expansion gives the original 1.15x icon scale).
   readonly property real hoverIconScale: 1 + hoverExpand * 0.015
@@ -568,7 +570,7 @@ Item {
   // visually overlap neighbouring icons/text. Also derived from hoverExpand
   // (1.4px of gap per px of expansion, matching the original 14px default).
   property real hoverModuleGap: barHovered ? hoverExpand * 1.4 : 0
-  Behavior on hoverModuleGap { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
+  Behavior on hoverModuleGap { NumberAnimation { duration: root.hoverAnimationDuration; easing.type: Easing.OutCubic } }
 
   function normalizePosition(value) {
     return BarModel.normalizePosition(value)
@@ -601,6 +603,8 @@ Item {
     centerAnchor = Util.canonicalWidgetId(config.centerAnchor || "")
     hoverExpand = typeof config.hoverExpand === "number" && config.hoverExpand >= 0
       ? config.hoverExpand : 10
+    hoverAnimationDuration = typeof config.hoverAnimationMs === "number" && config.hoverAnimationMs >= 0
+      ? config.hoverAnimationMs : 140
 
     // layoutEntries feeds plain JS arrays to the module Repeaters, and QML
     // cannot diff those: reassigning layoutConfig rebuilds every widget on
@@ -1842,7 +1846,7 @@ Item {
     // slots don't reflow when this grows.
     scale: root.barHovered ? root.hoverIconScale : 1.0
     transformOrigin: Item.Center
-    Behavior on scale { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
+    Behavior on scale { NumberAnimation { duration: root.hoverAnimationDuration; easing.type: Easing.OutCubic } }
 
     Component.onCompleted: root.registerModuleSlot(slot)
     Component.onDestruction: {
