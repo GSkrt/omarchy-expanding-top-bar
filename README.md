@@ -21,25 +21,14 @@ No external dependencies — it only uses APIs already provided by
 ## Known limitations
 
 This is a mouse-hover effect, so it is, definitionally, a plugin for people
-who have both a mouse and eyes pointed at the screen at the time. If either
-of those is not true for you right now, the bar will look and behave exactly
-like the stock one — which, to be fair, is the correct and only accessible
-outcome here.
+who have both a mouse and eyes pointed at the screen at the time. Accessibility
+statement: if you're on a small screen, you may want to get glasses. If
+you're blind, you were never going to see this anyway, so the bar growing on
+hover changes literally nothing for you either way — truly the most
+accessible feature in this plugin.
 
-Two specific things worth knowing before you install:
-
-- **Small/cramped screens:** the reflow-on-hover (windows shifting as the
-  bar's reserved space grows) is more noticeable the less spare room you
-  have. On an ultrawide it's a shrug; on a 13" laptop at 100% zoom with
-  three tiled terminals it can feel like the bar just cleared its throat
-  and asked everyone to scoot over. Set `hoverExpand` low (or `0`) if that
-  bugs you — see [Configuring](#configuring).
-- **Screen readers / non-visual use:** this plugin changes nothing about
-  how the bar is announced or navigated — it's a `scale`/size transform on
-  hover, not a semantic change, so it has zero effect (positive or
-  negative) for anyone not looking at the pixels. If you rely on a screen
-  reader, you're not missing anything by skipping this plugin, and you're
-  not missing anything by installing it either.
+(Set `hoverExpand` to `0` in `shell.json` if you'd rather the bar just sit
+there — see [Configuring](#configuring).)
 
 ## Install
 
