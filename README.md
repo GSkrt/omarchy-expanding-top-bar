@@ -10,6 +10,8 @@ built-in `omarchy.bar`, that grows thicker and scales up its widgets/icons
 while the pointer is hovering over it, then animates back down when the
 pointer leaves.
 
+![Idle vs. hover state of the bar](demo.gif)
+
 ## What it changes vs. the stock bar
 
 - The bar's thickness grows by ~10px on hover (this resizes the reserved
