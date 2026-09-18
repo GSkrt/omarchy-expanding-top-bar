@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "io.github.gskrt.expanding-top-bar",
   "name": "Expanding Top Bar",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": "Gregor Skrt",
   "description": "A minimal, configurable Omarchy bar that grows thicker and scales its icons on hover, so you don't have to scale up your whole display just to tell the icons apart on a small screen.",
   "kinds": [
