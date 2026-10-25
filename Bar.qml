@@ -561,16 +561,53 @@ Item {
   // How long the hover grow/shrink transitions take (bar.hoverAnimationMs).
   property int hoverAnimationDuration: 140
   // Grows the bar's reserved screen space while the pointer is over it.
-  property real barSize: barSizeBase + (barHovered ? hoverExpand : 0)
-  Behavior on barSize { NumberAnimation { duration: root.hoverAnimationDuration; easing.type: Easing.OutCubic } }
+  // One 0..1 value animated once per hover; the bar thickness, module gap,
+  // icon scale and reserved room are all derived from it, so they move in
+  // lockstep instead of as separate animations that drift apart.
+  // Stays expanded while a popup opened from the bar is showing, even with
+  // the pointer elsewhere, and collapses once that popup closes
+  // (bar.hoverHoldWhilePopup: false restores collapse-on-leave).
+  property bool hoverHoldWhilePopup: true
+  readonly property bool barExpanded: barHovered || (hoverHoldWhilePopup && activePopout !== null)
+  property real hoverProgress: barExpanded ? 1 : 0
+  Behavior on hoverProgress { NumberAnimation { duration: root.hoverAnimationDuration; easing.type: Easing.OutCubic } }
+  property real barSize: barSizeBase + hoverExpand * hoverProgress
+  // The bar's window is always as big as the fully expanded bar and only the
+  // drawn bar inside it grows, so the compositor never has to resize the
+  // window (or re-tile the windows below it) mid-animation.
+  readonly property real barWindowSize: barSizeBase + hoverExpand
+  // Screen space the bar reserves. It only changes once the grow or shrink
+  // animation has finished, so tiled windows re-tile a single time instead of
+  // on every frame (bar.hoverShiftWindows: false never reserves the extra
+  // space, leaving the bar a pure overlay).
+  property bool hoverShiftWindows: true
+  property real reservedSize: barSizeBase
+  function updateReservedSize() {
+    if (hoverProgress >= 0.999 && hoverShiftWindows) reservedSize = barSizeBase + hoverExpand
+    else if (hoverProgress <= 0.001 || !hoverShiftWindows) reservedSize = barSizeBase
+  }
+  onHoverProgressChanged: updateReservedSize()
+  onHoverShiftWindowsChanged: updateReservedSize()
+  onHoverExpandChanged: updateReservedSize()
+  onBarSizeBaseChanged: updateReservedSize()
   // Icon scale derived from hoverExpand (1.5% scale per px of expansion, so
   // the default 10px expansion gives the original 1.15x icon scale).
   readonly property real hoverIconScale: 1 + hoverExpand * 0.015
+  // Extra scale multiplier applied on top of the bar-wide hover scale to just
+  // the icon under the pointer (bar.hoverIconBoost; 1 = off, the default).
+  property real hoverIconBoost: 1
+  // Opacity (0..1) of the highlight drawn behind the hovered icon, in the
+  // bar's foreground color so it lightens a dark bar and darkens a light one
+  // (bar.hoverHighlight; 0 = off, the default).
+  property real hoverHighlight: 0
+  // Extra px of room opened up around the hovered icon (bar.hoverIconPadding).
+  property real hoverIconPadding: 0
   // Extra breathing room between modules so the icon scale above doesn't
   // visually overlap neighbouring icons/text. Also derived from hoverExpand
   // (1.4px of gap per px of expansion, matching the original 14px default).
-  property real hoverModuleGap: barHovered ? hoverExpand * 1.4 : 0
-  Behavior on hoverModuleGap { NumberAnimation { duration: root.hoverAnimationDuration; easing.type: Easing.OutCubic } }
+  // bar.hoverGapFactor sets the px of gap per px of expansion (default 1.4).
+  property real hoverGapFactor: 1.4
+  property real hoverModuleGap: hoverExpand * hoverGapFactor * hoverProgress
 
   function normalizePosition(value) {
     return BarModel.normalizePosition(value)
@@ -605,6 +642,16 @@ Item {
       ? config.hoverExpand : 10
     hoverAnimationDuration = typeof config.hoverAnimationMs === "number" && config.hoverAnimationMs >= 0
       ? config.hoverAnimationMs : 140
+    hoverGapFactor = typeof config.hoverGapFactor === "number" && config.hoverGapFactor >= 0
+      ? config.hoverGapFactor : 1.4
+    hoverShiftWindows = config.hoverShiftWindows !== false
+    hoverHoldWhilePopup = config.hoverHoldWhilePopup !== false
+    hoverHighlight = typeof config.hoverHighlight === "number" && config.hoverHighlight > 0
+      ? Math.min(1, config.hoverHighlight) : 0
+    hoverIconPadding = typeof config.hoverIconPadding === "number" && config.hoverIconPadding >= 0
+      ? config.hoverIconPadding : 0
+    hoverIconBoost = typeof config.hoverIconBoost === "number" && config.hoverIconBoost >= 1
+      ? config.hoverIconBoost : 1
 
     // layoutEntries feeds plain JS arrays to the module Repeaters, and QML
     // cannot diff those: reassigning layoutConfig rebuilds every widget on
@@ -1261,7 +1308,9 @@ Item {
     // textures — which measures ~150ms against ~20ms to tear down. Parking
     // keeps the surface alive, so showing is only a margin change.
     visible: !remapGuard.remapping
-    exclusionMode: root.barHidden ? ExclusionMode.Ignore : ExclusionMode.Auto
+    exclusionMode: root.barHidden ? ExclusionMode.Ignore : ExclusionMode.Normal
+    // Windows below make room once the animation settles (see reservedSize).
+    exclusiveZone: root.reservedSize
 
     ScreenMoveRemap {
       id: remapGuard
@@ -1269,10 +1318,10 @@ Item {
     }
 
     margins {
-      top: root.barHidden && root.position === "top" ? -root.barSize : 0
-      bottom: root.barHidden && root.position === "bottom" ? -root.barSize : 0
-      left: root.barHidden && root.position === "left" ? -root.barSize : 0
-      right: root.barHidden && root.position === "right" ? -root.barSize : 0
+      top: root.barHidden && root.position === "top" ? -root.barWindowSize : 0
+      bottom: root.barHidden && root.position === "bottom" ? -root.barWindowSize : 0
+      left: root.barHidden && root.position === "left" ? -root.barWindowSize : 0
+      right: root.barHidden && root.position === "right" ? -root.barWindowSize : 0
     }
 
     anchors {
@@ -1282,15 +1331,27 @@ Item {
       right: root.position === "right" || !root.vertical
     }
 
-    implicitWidth: root.vertical ? root.barSize : 0
-    implicitHeight: root.vertical ? 0 : root.barSize
-    color: root.transparent ? "transparent" : root.background
+    implicitWidth: root.vertical ? root.barWindowSize : 0
+    implicitHeight: root.vertical ? 0 : root.barWindowSize
+    color: "transparent"
+    // Only the drawn bar takes pointer input; the empty headroom around it
+    // stays click-through to the windows underneath.
+    mask: Region { item: barVisual }
     surfaceFormat.opaque: false
     WlrLayershell.namespace: "omarchy-bar"
     WlrLayershell.layer: WlrLayer.Top
 
+    Rectangle {
+      id: barVisual
+      color: root.transparent ? "transparent" : root.background
+      width: root.vertical ? root.barSize : parent.width
+      height: root.vertical ? parent.height : root.barSize
+      x: root.position === "right" ? parent.width - width : 0
+      y: root.position === "bottom" ? parent.height - height : 0
+    }
+
     Loader {
-      anchors.fill: parent
+      anchors.fill: barVisual
       sourceComponent: root.vertical ? verticalBar : horizontalBar
 
       // A child of the loader, not a sibling of the sections: an ancestor stays
@@ -1838,15 +1899,49 @@ Item {
     }
     implicitWidth: activeItem && activeItem.visible ? (root.vertical ? root.barSize : activeItem.implicitWidth) : 0
     implicitHeight: activeItem && activeItem.visible ? activeItem.implicitHeight : 0
-    width: implicitWidth
-    height: implicitHeight
+    // Extra room along the bar around the icon under the pointer, so its
+    // neighbours step aside as it magnifies (bar.hoverIconPadding).
+    // Wide modules (a group of indicators, workspaces, the clock) get a gentler
+    // boost than a single icon, so magnifying them can't swallow their
+    // neighbours; the padding below also grows with the width that is added.
+    readonly property real boostRefExtent: 32
+    readonly property real moduleExtent: root.vertical ? implicitHeight : implicitWidth
+    readonly property real iconBoost: 1 + (root.hoverIconBoost - 1) * Math.min(1, boostRefExtent / Math.max(1, moduleExtent))
+    // The pointer must rest on a module briefly before it counts as hovered,
+    // so crossing the border between two modules (which resizes both) can't
+    // flip-flop the hover back and forth.
+    property bool hoverActive: false
+    onHoveredChanged: {
+      if (hovered) hoverIntent.restart()
+      else { hoverIntent.stop(); hoverActive = false }
+    }
+    Timer {
+      id: hoverIntent
+      interval: 40
+      onTriggered: slot.hoverActive = slot.hovered
+    }
+    // 0..1 progress of this module's own extra boost.
+    property real boostT: root.barHovered && slot.hoverActive ? 1 : 0
+    Behavior on boostT { NumberAnimation { duration: root.hoverAnimationDuration; easing.type: Easing.OutCubic } }
+
+    // Every slot reserves the room its magnified size takes while the bar is
+    // hovered, so scaled neighbours never overlap; the hovered one reserves
+    // its extra boost (or the configured padding, if larger) on top. Rounded
+    // to whole pixels so text and icons stay crisp while the layout moves.
+    readonly property real hoverPad: {
+      if (moduleExtent <= 0) return 0
+      var base = moduleExtent * (root.hoverIconScale - 1) * root.hoverProgress
+      var boosted = moduleExtent * root.hoverIconScale * (iconBoost - 1)
+      return Math.round(base + boostT * Math.max(root.hoverIconPadding, boosted))
+    }
+    width: implicitWidth + (root.vertical ? 0 : hoverPad)
+    height: implicitHeight + (root.vertical ? hoverPad : 0)
     z: modulePointer.dragging ? 100 : 0
 
     // Purely visual: scaling doesn't touch implicitWidth/Height, so neighbouring
     // slots don't reflow when this grows.
-    scale: root.barHovered ? root.hoverIconScale : 1.0
+    scale: (1 + (root.hoverIconScale - 1) * root.hoverProgress) * (1 + (slot.iconBoost - 1) * slot.boostT)
     transformOrigin: Item.Center
-    Behavior on scale { NumberAnimation { duration: root.hoverAnimationDuration; easing.type: Easing.OutCubic } }
 
     Component.onCompleted: root.registerModuleSlot(slot)
     Component.onDestruction: {
@@ -1855,6 +1950,49 @@ Item {
     }
 
     HoverHandler { id: moduleHover }
+
+    // Soft pill behind the hovered icon, and behind the one whose popup is open.
+    // Sized in screen pixels to the magnified icon (not the slot, which also
+    // holds reserved padding and is scaled itself), and counter-scaled so it
+    // never grows past the icon or the bar.
+    //
+    // Modules that hold several icons (workspaces, indicators, tray) are one
+    // slot, so their highlight is icon-sized and follows the pointer along
+    // the module instead of lighting up the whole group.
+    property real panelT: slot.panelOpen ? 1 : 0
+    Behavior on panelT { NumberAnimation { duration: root.hoverAnimationDuration; easing.type: Easing.OutCubic } }
+    readonly property bool iconGroup: ["omarchy.indicators", "omarchy.workspaces", "omarchy.tray"].indexOf(slot.moduleName) !== -1
+    Item {
+      id: hoverGlow
+      readonly property real groupIconSize: 30
+      readonly property real along: slot.iconGroup
+        ? Math.min(groupIconSize, slot.moduleExtent * slot.scale + 4)
+        : slot.moduleExtent * slot.scale + 4
+      readonly property real across: Math.max(0, root.barSize - 10)
+      // pointer position along the module, kept inside it (slot coordinates)
+      readonly property real halfLocal: along / 2 / Math.max(0.01, slot.scale)
+      readonly property real pointerAlong: root.vertical ? moduleHover.point.position.y : moduleHover.point.position.x
+      readonly property real centerAlong: {
+        var len = root.vertical ? slot.height : slot.width
+        if (!slot.iconGroup) return len / 2
+        return Math.max(halfLocal, Math.min(len - halfLocal, pointerAlong))
+      }
+      visible: root.hoverHighlight > 0 && opacity > 0 && !slot.dragSource
+      width: root.vertical ? across : along
+      height: root.vertical ? along : across
+      x: root.vertical ? (slot.width - width) / 2 : centerAlong - width / 2
+      y: root.vertical ? centerAlong - height / 2 : (slot.height - height) / 2
+      Behavior on x { enabled: slot.iconGroup && !root.vertical; NumberAnimation { duration: 90; easing.type: Easing.OutCubic } }
+      Behavior on y { enabled: slot.iconGroup && root.vertical; NumberAnimation { duration: 90; easing.type: Easing.OutCubic } }
+      scale: slot.scale > 0 ? 1 / slot.scale : 1
+      opacity: root.hoverHighlight * Math.max(slot.boostT, slot.panelT * root.hoverProgress)
+
+      Rectangle {
+        anchors.fill: parent
+        radius: Math.min(width, height) / 2
+        color: root.barForeground
+      }
+    }
 
     BorderSurface {
       visible: slot.dragSource
@@ -1871,6 +2009,10 @@ Item {
       active: !slot.qmlCustom && !slot.registered
       sourceComponent: slot.commandCustom ? customCommandModuleComponent : emptyModuleComponent
       anchors.fill: parent
+      anchors.leftMargin: root.vertical ? 0 : slot.hoverPad / 2
+      anchors.rightMargin: root.vertical ? 0 : slot.hoverPad / 2
+      anchors.topMargin: root.vertical ? slot.hoverPad / 2 : 0
+      anchors.bottomMargin: root.vertical ? slot.hoverPad / 2 : 0
       opacity: slot.dragSource ? 0.22 : 1.0
       onLoaded: {
         slot.injectProps()
@@ -1883,6 +2025,10 @@ Item {
       active: slot.registered
       sourceComponent: slot.registered ? slot.registryComponent : null
       anchors.fill: parent
+      anchors.leftMargin: root.vertical ? 0 : slot.hoverPad / 2
+      anchors.rightMargin: root.vertical ? 0 : slot.hoverPad / 2
+      anchors.topMargin: root.vertical ? slot.hoverPad / 2 : 0
+      anchors.bottomMargin: root.vertical ? slot.hoverPad / 2 : 0
       opacity: slot.dragSource ? 0.22 : 1.0
       onLoaded: {
         slot.injectProps()
@@ -1895,6 +2041,10 @@ Item {
       active: slot.qmlCustom
       source: slot.qmlCustom ? root.customModuleSource(slot.entry) : ""
       anchors.fill: parent
+      anchors.leftMargin: root.vertical ? 0 : slot.hoverPad / 2
+      anchors.rightMargin: root.vertical ? 0 : slot.hoverPad / 2
+      anchors.topMargin: root.vertical ? slot.hoverPad / 2 : 0
+      anchors.bottomMargin: root.vertical ? slot.hoverPad / 2 : 0
       opacity: slot.dragSource ? 0.22 : 1.0
       onLoaded: {
         slot.injectProps()

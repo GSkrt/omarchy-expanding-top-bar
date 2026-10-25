@@ -14,13 +14,20 @@ pointer leaves.
 
 ## What it changes vs. the stock bar
 
-- The bar's thickness grows by ~10px on hover (this resizes the reserved
-  screen space, so tiled windows shift slightly while hovering).
+- The bar's thickness grows by ~10px on hover. It grows as an overlay on top
+  of the windows below it, and tiled windows make room once, after the grow
+  animation finishes (and move back once after it shrinks), so the animation
+  itself stays smooth. Set `hoverShiftWindows` to `false` to never move
+  windows at all.
 - Every widget/icon in the bar scales up ~15% on hover.
-- Extra spacing opens up between widgets (and around the clock) on hover so
-  the larger icons don't overlap their neighbors.
+- Every widget reserves room for its enlarged size, plus a small gap, so the
+  larger icons never overlap their neighbors (the clock included).
+- Optionally, the icon under the pointer magnifies further than the rest
+  (`hoverIconBoost`).
 
-All three effects animate together over ~140ms.
+All of it animates together over ~140ms. See
+[How the animation works](#how-the-animation-works) for why it is built the
+way it is.
 
 No external dependencies — it only uses APIs already provided by
 `omarchy-shell`.
@@ -79,7 +86,9 @@ sync:
 
 - The bar grows thicker by exactly `hoverExpand` px on hover.
 - Icons scale up by `1 + hoverExpand * 0.015` (10px → 1.15x, matching the default look).
-- The gap opened up between widgets is `hoverExpand * 1.4` px (10px → 14px).
+- The gap opened up between widgets is `hoverExpand * hoverGapFactor` px
+  (default factor `1.4`, so 10px → 14px). On top of that every widget reserves
+  the extra width its enlarged icon takes, so the gap is only breathing room.
 
 Set it to `0` to disable the grow effect entirely (the bar becomes static).
 Larger values make a more dramatic hover effect; the growth is unbounded, so
@@ -90,13 +99,108 @@ grow/shrink transition takes when the pointer enters or leaves the bar.
 Lower is snappier, higher is more of a slow reveal. Set it to `0` for an
 instant, unanimated jump.
 
+**`hoverIconBoost`** (number >= 1, default `1` = off) is an extra scale
+multiplier applied only to the icon directly under the pointer, on top of the
+bar-wide grow effect. For example `1.25` makes the hovered icon 25% larger than
+its neighbours. The boost is full strength for a single icon (up to ~32px wide)
+and tapers off for wider modules, so a group of icons can't swallow what's
+next to it.
+
+**`hoverGapFactor`** (number >= 0, default `1.4`) is how many pixels of gap
+open up between widgets per pixel of `hoverExpand`. Lower it for a more compact
+hovered bar (`0.4` with the default `hoverExpand` gives a 4px gap, `0` keeps the
+idle spacing). Since every widget already reserves room for its enlarged size,
+small values like `0.2` are enough.
+
+**`hoverIconPadding`** (pixels, default `0` = off) opens up at least this much
+extra room around the icon under the pointer so its neighbours step aside as it
+magnifies. It also enlarges that icon's hover/click area. Wide modules (a group
+of indicators, the clock) automatically get proportionally more.
+
+**`hoverShiftWindows`** (boolean, default `true`) whether tiled windows make
+room for the grown bar. `false` keeps the bar a pure overlay on top of them.
+
+A fuller example with the tuned values used while developing this plugin:
+
+```json
+{
+  "bar": {
+    "hoverExpand": 15,
+    "hoverAnimationMs": 200,
+    "hoverIconBoost": 1.3,
+    "hoverGapFactor": 0.2,
+    "hoverIconPadding": 8,
+    "hoverHighlight": 0.1,
+    "hoverShiftWindows": true
+  }
+}
+```
+
+**`hoverHoldWhilePopup`** (boolean, default `true`) keeps the bar expanded
+while a popup opened from it (audio, network, clock...) is showing, even if the
+pointer has left the bar. It collapses once the popup is closed. `false`
+collapses the bar as soon as the pointer leaves, as before.
+
+**`hoverHighlight`** (0 to 1, default `0` = off) draws a soft rounded
+highlight behind the icon under the pointer, and behind the icon whose popup is
+open. It uses the bar's foreground color at this opacity, so it lightens a dark
+theme and darkens a light one automatically. Modules that hold several icons
+(workspaces, indicators, tray) get an icon-sized highlight that follows the
+pointer along the module. `0.08`-`0.15` is subtle.
+
 ### Further tuning
 
-The 1.5%-scale-per-px and 1.4px-gap-per-px ratios (the fixed relationship
-between `hoverExpand` and the icon/spacing effects, rather than the overall
-amount), and the easing curve, are constants in `Bar.qml` — search for
-`hoverIconScale`, `hoverModuleGap`, and the `Behavior on` blocks next to
-`hoverExpand` and `hoverAnimationDuration`.
+The 1.5%-scale-per-px ratio (the fixed relationship between `hoverExpand` and
+the icon scale, rather than the overall amount), the width a single icon may be
+boosted at full strength (`boostRefExtent`), the 40ms hover-intent delay and the
+easing curve are constants in `Bar.qml` — search for `hoverIconScale`,
+`boostRefExtent`, `hoverIntent`, and the `Behavior on hoverProgress` block.
+
+## How the animation works
+
+Getting a hover effect that is both roomy and smooth took a few iterations. The
+current design, and the reason for each piece:
+
+**Scaling is not enough on its own.** A scaled item is only *drawn* bigger; the
+layout still thinks it is its original size, so neighbours overlap it. Early
+versions papered over that with a fixed gap, which was too loose for single
+icons and too tight for wide groups like the indicators or the clock. Now,
+while the bar is hovered, every widget reserves layout room equal to its
+magnified size (`width × (scale − 1)`), and the hovered one reserves its extra
+boost on top. Overlap is impossible by construction, whatever a widget's width,
+and the gap is just a few pixels of breathing room.
+
+**One progress value drives everything.** The bar thickness, the gap, every
+icon's scale and every widget's reserved room are all derived from a single
+`hoverProgress` that animates from 0 to 1 once per hover. Previously each had its
+own animation; they started at slightly different moments and drifted apart,
+which read as jitter. Only the hovered icon's extra boost animates on its own
+(it has to follow the pointer from icon to icon).
+
+**Hover intent.** Growing the hovered widget moves its neighbours, which can put
+the stationary pointer over a different widget, which then grows, and so on.
+A widget therefore only counts as hovered once the pointer has rested on it for
+40ms, which stops the flip-flop at the border between two widgets. Reserved
+widths are also rounded to whole pixels so text and icons stay crisp while the
+layout moves.
+
+**The compositor never sees the animation.** The bar is a layer-shell window,
+and its reserved screen space normally follows its height. Animating the height
+therefore made Hyprland re-tile every window below the bar on every frame, with
+its own window animations running on top, and no amount of tuning on the QML
+side could make that smooth. Instead:
+
+- The bar window is always as tall as the fully expanded bar. It is transparent
+  and only the drawn bar inside it grows, so the window is never resized.
+- Input is limited to the drawn bar, so the empty headroom doesn't block clicks
+  on the windows underneath.
+- The reserved space changes only once, after the grow animation finishes, and
+  changes back once after the shrink finishes. Windows below shift a single time,
+  and Hyprland animates that one move itself. If the pointer only sweeps across
+  the bar without resting, the animation never completes and the windows never
+  move at all.
+- `hoverShiftWindows: false` never reserves the extra space, making the bar a
+  pure overlay.
 
 ---
 
