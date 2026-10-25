@@ -4,6 +4,8 @@ How to work on the look of the bar. Written for someone who has not touched
 this codebase before. Read [PROPOSAL.md](PROPOSAL.md) first for what we are
 building; this file is about *how to work on it*.
 
+How to get the code and send changes back (including what to do without write access) is in [CONTRIBUTING.md](../CONTRIBUTING.md).
+
 ## 0. Where the UI lives now
 
 The group feature is implemented, so you can change the real thing instead of

@@ -1,6 +1,6 @@
 # TODO
 
-Details: [testing](docs/TESTING.md) · [proposal](docs/PROPOSAL.md) · [UI guide](docs/UI-GUIDE.md) · [UI draft](docs/UI-DRAFT.md)
+Start here: [contributing](CONTRIBUTING.md) · Details: [testing](docs/TESTING.md) · [proposal](docs/PROPOSAL.md) · [UI guide](docs/UI-GUIDE.md) · [UI draft](docs/UI-DRAFT.md)
 
 ## Settings icon
 
