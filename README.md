@@ -37,6 +37,17 @@ No external dependencies — it only uses APIs already provided by
 there — see [Configuring](#configuring).)
 
 
+## Settings icon and icon groups
+
+A gear icon sits at the right end of the bar. Click it for the basic hover
+settings, and to switch on **icon groups**: related icons collapse into one
+group icon, which you click to open. Groups are built by drag and drop in a
+floating designer window, each with its own icon (a glyph or one of the bundled
+SVGs) and background color. An icon that changes status can pop out of its
+closed group for a few seconds. Everything is off until you enable it, and all
+of it is stored under `bar` in `shell.json`. See [docs/UI-GUIDE.md](docs/UI-GUIDE.md)
+for the keys and for how to work on the UI.
+
 ## Install
 
 ```bash

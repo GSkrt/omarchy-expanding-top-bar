@@ -7,6 +7,7 @@ import QtQuick.Layouts
 import qs.Commons
 import qs.Ui
 import "BarModel.js" as BarModel
+import "GroupModel.js" as GroupModel
 
 Item {
   id: root
@@ -313,7 +314,10 @@ Item {
     pluginBarApis = next
   }
 
-  onActivePopoutChanged: syncAllPluginBarApiObjects()
+  onActivePopoutChanged: {
+    syncAllPluginBarApiObjects()
+    updateGroupAutoClose()
+  }
   onClickTargetsChanged: syncAllPluginBarApiObjects()
   onLayoutConfigChanged: syncAllPluginBarApiObjects()
   onModuleSlotsChanged: Qt.callLater(prunePluginBarApis)
@@ -644,6 +648,23 @@ Item {
       ? config.hoverAnimationMs : 140
     hoverGapFactor = typeof config.hoverGapFactor === "number" && config.hoverGapFactor >= 0
       ? config.hoverGapFactor : 1.4
+    groupingEnabled = config.groupingEnabled === true
+    var nextGroups = GroupModel.normalize(config.groups)
+    // only reassign on a real change: it rebuilds every widget in the bar
+    if (JSON.stringify(nextGroups) !== JSON.stringify(groupsConfig)) groupsConfig = nextGroups
+    groupAnimationDuration = typeof config.groupAnimationMs === "number" && config.groupAnimationMs >= 0
+      ? config.groupAnimationMs : 220
+    groupHighlight = typeof config.groupHighlight === "number" && config.groupHighlight >= 0
+      ? Math.min(1, config.groupHighlight) : 0.3
+    var openOnHover = config.groupOpenOnHover === true
+    if (openOnHover !== groupOpenOnHover) openGroups = ({})
+    groupOpenOnHover = openOnHover
+    groupStatusPeek = config.groupStatusPeek !== false
+    groupPeekMs = typeof config.groupPeekMs === "number" && config.groupPeekMs >= 0 ? config.groupPeekMs : 4000
+    groupAutoClose = typeof config.groupAutoCloseMs === "number" && config.groupAutoCloseMs >= 0
+      ? config.groupAutoCloseMs : 3000
+    groupCollapseDelay = typeof config.groupCollapseDelayMs === "number" && config.groupCollapseDelayMs >= 0
+      ? config.groupCollapseDelayMs : 250
     hoverShiftWindows = config.hoverShiftWindows !== false
     hoverHoldWhilePopup = config.hoverHoldWhilePopup !== false
     hoverHighlight = typeof config.hoverHighlight === "number" && config.hoverHighlight > 0
@@ -683,10 +704,252 @@ Item {
 
   onBarConfigChanged: applyBarConfig()
 
+  // The settings icon is part of this bar, not of the user's layout: it is
+  // always the last entry of the right section, whatever shell.json says.
+  readonly property var settingsEntry: ({
+    id: "expanding.settings",
+    type: "qml",
+    source: Qt.resolvedUrl("widgets/BarSettings.qml").toString().replace(/^file:\/\//, "")
+  })
+
+  // Icon groups. Off unless bar.groupingEnabled is true; with it off the
+  // layout is exactly what shell.json says.
+  property bool groupingEnabled: false
+  property var groupsConfig: []
+  property int groupCollapseDelay: 250
+  // false (default): click a group icon to open or close its drawer.
+  // true: the drawer follows the pointer instead.
+  property bool groupOpenOnHover: false
+  // Status peek: when a grouped icon changes (its glyph or image, or its
+  // active state), it pops out of a closed group for groupPeekMs, then tucks
+  // back in.
+  property bool groupStatusPeek: true
+  property int groupPeekMs: 4000
+  // "group|module" -> time (ms) the peek ends, and the groups that have one
+  property var peeks: ({})
+  property var peekGroups: ({})
+  // changes while the bar is still starting up are not news
+  property bool peekReady: false
+  // Click mode: an open drawer closes by itself once the pointer has been off
+  // the bar this long (ms). 0 keeps it open until clicked.
+  property int groupAutoClose: 3000
+  // The drawer opens and closes at its own pace, independent of the bar's
+  // hover animation (hoverAnimationMs).
+  property int groupAnimationDuration: 220
+  // opacity of the pill behind an open group
+  property real groupHighlight: 0.3
+  // groupId -> true while the group is open, and how many of its slots the
+  // pointer is currently over
+  property var openGroups: ({})
+  property var groupHoverCounts: ({})
+  readonly property string groupHandleSource: Qt.resolvedUrl("widgets/GroupHandle.qml").toString().replace(/^file:\/\//, "")
+
+  function setGroupOpen(groupId, open) {
+    if ((openGroups[groupId] === true) === open) return
+    var next = {}
+    for (var k in openGroups) next[k] = openGroups[k]
+    if (open) next[groupId] = true
+    else delete next[groupId]
+    openGroups = next
+  }
+
+  // Click mode: one drawer at a time, it stays until clicked again.
+  function toggleGroup(groupId) {
+    if (groupOpenOnHover) return
+    var next = {}
+    if (openGroups[groupId] !== true) next[groupId] = true
+    openGroups = next
+  }
+
+  // The pointer reached or left a group's icon. In click mode this does
+  // nothing from a standing start, but while one drawer is open, pointing at
+  // another group's icon switches to that group.
+  function hoverGroupHandle(groupId, hovered) {
+    if (groupOpenOnHover) {
+      setGroupHovered(groupId, hovered)
+      return
+    }
+    if (!hovered || openGroups[groupId] === true) return
+    var anyOpen = false
+    for (var id in openGroups) anyOpen = true
+    if (!anyOpen) return
+    var next = {}
+    next[groupId] = true
+    openGroups = next
+  }
+
+  function setGroupHovered(groupId, hovered) {
+    if (!groupOpenOnHover) return
+    var counts = {}
+    for (var k in groupHoverCounts) counts[k] = groupHoverCounts[k]
+    counts[groupId] = Math.max(0, (counts[groupId] || 0) + (hovered ? 1 : -1))
+    groupHoverCounts = counts
+    if (hovered) {
+      groupCloseTimer.stop()
+      setGroupOpen(groupId, true)
+    } else {
+      groupCloseTimer.restart()
+    }
+  }
+
+  function setPeeks(next) {
+    var groups = {}
+    for (var key in next) groups[key.split("|")[0]] = true
+    peeks = next
+    peekGroups = groups
+  }
+
+  function notePeek(groupId, moduleId) {
+    if (!groupStatusPeek || groupPeekMs <= 0 || !peekReady) return
+    var next = {}
+    for (var k in peeks) next[k] = peeks[k]
+    next[groupId + "|" + moduleId] = Date.now() + groupPeekMs
+    setPeeks(next)
+    peekTimer.start()
+  }
+
+  Timer {
+    id: peekTimer
+    interval: 400
+    repeat: true
+    onTriggered: {
+      var now = Date.now()
+      var next = {}
+      var any = false
+      var changed = false
+      for (var k in root.peeks) {
+        if (root.peeks[k] > now) { next[k] = root.peeks[k]; any = true }
+        else changed = true
+      }
+      if (changed) root.setPeeks(next)
+      if (!any) stop()
+    }
+  }
+
+  Timer {
+    interval: 8000
+    running: true
+    onTriggered: root.peekReady = true
+  }
+
+  Timer {
+    id: groupAutoCloseTimer
+    interval: Math.max(1, root.groupAutoClose)
+    // a popup opened from a member counts as still using the bar
+    onTriggered: if (!root.barHovered && root.activePopout === null) root.openGroups = ({})
+  }
+
+  function updateGroupAutoClose() {
+    var anyOpen = false
+    for (var id in openGroups) anyOpen = true
+    if (groupOpenOnHover || groupAutoClose <= 0 || barHovered || !anyOpen || activePopout !== null) groupAutoCloseTimer.stop()
+    else groupAutoCloseTimer.restart()
+  }
+
+  onBarHoveredChanged: updateGroupAutoClose()
+  onOpenGroupsChanged: updateGroupAutoClose()
+  onGroupAutoCloseChanged: updateGroupAutoClose()
+
+  Timer {
+    id: groupCloseTimer
+    interval: root.groupCollapseDelay
+    onTriggered: {
+      for (var id in root.openGroups) {
+        if (!(root.groupHoverCounts[id] > 0)) root.setGroupOpen(id, false)
+      }
+    }
+  }
+
+  // The bar layout with each group folded in: the group's icon, then its
+  // members (tagged `_group`), at the spot of the member that comes first in
+  // left, center, right order. Members drop out of their old positions.
+  function groupedLayout() {
+    var cfg = layoutConfig || {}
+    var regions = ["left", "center", "right"]
+    var base = {}
+    for (var r = 0; r < regions.length; r++) base[regions[r]] = Array.isArray(cfg[regions[r]]) ? cfg[regions[r]] : []
+    if (!groupingEnabled || groupsConfig.length === 0) return base
+
+    // modules whose position the bar depends on stay out of groups
+    var skip = ["omarchy.tray", "expanding.settings", centerAnchor]
+    var memberGroup = {}
+    var groupById = {}
+    var groupColor = {}
+    for (var g = 0; g < groupsConfig.length; g++) {
+      groupById[groupsConfig[g].id] = groupsConfig[g]
+      groupColor[groupsConfig[g].id] = GroupModel.resolveColor(groupsConfig[g], g)
+      for (var m = 0; m < groupsConfig[g].members.length; m++) {
+        var memberId = groupsConfig[g].members[m]
+        if (skip.indexOf(memberId) === -1 && !memberGroup[memberId]) memberGroup[memberId] = groupsConfig[g].id
+      }
+    }
+
+    var present = {}
+    var home = {}
+    for (var ri = 0; ri < regions.length; ri++) {
+      var entries = base[regions[ri]]
+      for (var i = 0; i < entries.length; i++) {
+        var id = entryId(entries[i])
+        var gid = memberGroup[id]
+        if (!gid || present[id]) continue
+        present[id] = entries[i]
+        if (!home[gid]) home[gid] = { region: regions[ri], id: id }
+      }
+    }
+
+    var out = {}
+    for (var rj = 0; rj < regions.length; rj++) {
+      var region = regions[rj]
+      var list = []
+      var source = base[region]
+      for (var j = 0; j < source.length; j++) {
+        var entry = source[j]
+        var eid = entryId(entry)
+        var egid = memberGroup[eid]
+        if (!egid) { list.push(entry); continue }
+        if (present[eid] !== entry) continue
+        if (home[egid].region !== region || home[egid].id !== eid) continue
+
+        var group = groupById[egid]
+        var members = []
+        for (var k = 0; k < group.members.length; k++) {
+          var member = present[group.members[k]]
+          if (!member || memberGroup[group.members[k]] !== egid) continue
+          var tagged = { id: entryId(member) }
+          var extra = entrySettings(member)
+          for (var key in extra) tagged[key] = extra[key]
+          tagged._group = egid
+          tagged._quiet = group.quiet.indexOf(group.members[k]) !== -1
+          members.push(tagged)
+        }
+        list.push({
+          id: "expanding.group." + egid,
+          type: "qml",
+          source: groupHandleSource,
+          groupHandle: egid,
+          color: groupColor[egid],
+          label: group.label,
+          icon: group.icon,
+          svg: group.svg,
+          members: members
+        })
+      }
+      out[region] = list
+    }
+    return out
+  }
+
+  readonly property Component memberSlotComponent: Component {
+    ModuleSlot {
+      entry: parent ? parent.memberEntry : ({})
+      region: parent ? parent.memberRegion : ""
+    }
+  }
+
   function layoutEntries(region) {
     var serial = barConfigSerial
-    var entries = layoutConfig ? layoutConfig[region] : null
-    return Array.isArray(entries) ? entries : []
+    var list = groupedLayout()[region] || []
+    return region === "right" ? list.concat([settingsEntry]) : list
   }
 
   // Tab order for the panels in one bar region. Scoped to a single bar surface
@@ -1885,6 +2148,53 @@ Item {
       return componentLoader.item
     }
     readonly property bool hovered: moduleHover.hovered
+    // Group membership. A group is one fixed-size icon (the handle); its
+    // members live in a drawer that opens over the neighbouring icons without
+    // moving any of them, so the pointer can never be carried away from
+    // what it is aiming at when one group closes and the next opens.
+    readonly property string memberOf: moduleSettings._group || ""
+    readonly property string handleOf: moduleSettings.groupHandle || ""
+    readonly property string groupKey: memberOf !== "" ? memberOf : handleOf
+    property real openT: handleOf !== "" && (root.openGroups[handleOf] === true || root.peekGroups[handleOf] === true) ? 1 : 0
+    Behavior on openT { NumberAnimation { duration: Math.max(1, root.groupAnimationDuration); easing.type: Easing.OutCubic } }
+    Connections {
+      target: slot.activeItem
+      ignoreUnknownSignals: true
+      function onToggleRequested() { if (slot.handleOf !== "") root.toggleGroup(slot.handleOf) }
+    }
+    // Status change detection. Widgets have no common "status changed" signal,
+    // so look at what they draw: any icon glyph, image or active flag in the
+    // widget's item tree. Plain text (clocks, temperatures) is ignored so
+    // that numbers ticking over don't count as news.
+    property string statusSig: ""
+    function iconSignature(item, depth) {
+      if (!item || depth > 8) return ""
+      var out = ""
+      var t = item.text
+      if (typeof t === "string" && t.length > 0 && t.length <= 2) {
+        var c = t.charCodeAt(0)
+        if (c >= 0xE000 || (c >= 0xD800 && c <= 0xDBFF)) out += t
+      }
+      var src = item.source
+      if (src !== undefined && src !== null && src !== "") out += "|" + String(src)
+      if (item.active === true) out += "|a"
+      var kids = item.children
+      if (kids) for (var i = 0; i < kids.length; i++) out += iconSignature(kids[i], depth + 1)
+      return out
+    }
+    Timer {
+      interval: 1000
+      repeat: true
+      running: root.groupStatusPeek && slot.memberOf !== "" && slot.moduleSettings._quiet !== true
+      onTriggered: {
+        var sig = slot.iconSignature(slot.activeItem, 0)
+        if (sig === "") return
+        if (slot.statusSig !== "" && sig !== slot.statusSig) root.notePeek(slot.memberOf, slot.moduleName)
+        slot.statusSig = sig
+      }
+    }
+    // a member with its popup open keeps its group open
+    onPanelOpenChanged: if (memberOf !== "") root.setGroupHovered(memberOf, panelOpen)
     readonly property bool dragSource: root.barDragSource === slot
     readonly property bool panelOpen: root.activePopout === slot.activeItem
     // Modules bigger than the mark they want (a text label in a padded slot,
@@ -1912,6 +2222,8 @@ Item {
     // flip-flop the hover back and forth.
     property bool hoverActive: false
     onHoveredChanged: {
+      if (handleOf !== "") root.hoverGroupHandle(handleOf, hovered)
+      else if (memberOf !== "") root.setGroupHovered(memberOf, hovered)
       if (hovered) hoverIntent.restart()
       else { hoverIntent.stop(); hoverActive = false }
     }
@@ -1936,7 +2248,8 @@ Item {
     }
     width: implicitWidth + (root.vertical ? 0 : hoverPad)
     height: implicitHeight + (root.vertical ? hoverPad : 0)
-    z: modulePointer.dragging ? 100 : 0
+    // an open drawer is drawn over everything beside it, other group icons included
+    z: modulePointer.dragging ? 100 : (openT > 0.001 ? 50 : 0)
 
     // Purely visual: scaling doesn't touch implicitWidth/Height, so neighbouring
     // slots don't reflow when this grows.
@@ -1962,6 +2275,107 @@ Item {
     property real panelT: slot.panelOpen ? 1 : 0
     Behavior on panelT { NumberAnimation { duration: root.hoverAnimationDuration; easing.type: Easing.OutCubic } }
     readonly property bool iconGroup: ["omarchy.indicators", "omarchy.workspaces", "omarchy.tray"].indexOf(slot.moduleName) !== -1
+    // Drawer of an open group, drawn over whatever is next to the handle. It
+    // grows away from the handle towards the nearer end of the bar and takes
+    // no layout room. The item's own coordinates are layout pixels (the slot's
+    // hover scale is cancelled), with the origin at the slot's layout corner.
+    Item {
+      id: groupDrawer
+
+      readonly property bool isHandle: slot.handleOf !== ""
+      readonly property bool backwards: slot.region === "right"
+      readonly property real k: 1 / Math.max(0.01, slot.scale)
+      readonly property var members: slot.moduleSettings.members || []
+      readonly property real slotAlong: root.vertical ? slot.height : slot.width
+      readonly property real slotAcross: root.vertical ? slot.width : slot.height
+      readonly property real natural: root.vertical ? membersGrid.implicitHeight : membersGrid.implicitWidth
+      readonly property real reveal: natural * slot.openT
+      readonly property real thickness: Math.max(0, root.barSize - 10)
+      readonly property real pad: Style.space(4) * slot.openT
+      readonly property real pillAlong: slotAlong + reveal + pad * 2
+      readonly property real pillStart: backwards ? -(reveal + pad * 2) : 0
+      readonly property real clipStart: backwards ? -(reveal + pad) : slotAlong + pad
+
+      // always shown for a group handle: its color is its background even
+      // when closed; opening grows the same pill
+      visible: isHandle
+      width: slot.width
+      height: slot.height
+      scale: k
+      transformOrigin: Item.TopLeft
+      x: slot.width / 2 * (1 - k)
+      y: slot.height / 2 * (1 - k)
+
+      Item {
+        id: drawerPill
+        x: root.vertical ? (groupDrawer.slotAcross - groupDrawer.thickness) / 2 : groupDrawer.pillStart
+        y: root.vertical ? groupDrawer.pillStart : (groupDrawer.slotAcross - groupDrawer.thickness) / 2
+        width: root.vertical ? groupDrawer.thickness : groupDrawer.pillAlong
+        height: root.vertical ? groupDrawer.pillAlong : groupDrawer.thickness
+
+        // opaque base while open, so the icons underneath don't show through
+        Rectangle {
+          anchors.fill: parent
+          radius: Math.min(width, height) / 2
+          color: Qt.rgba(root.background.r, root.background.g, root.background.b, 1)
+          opacity: slot.openT
+        }
+
+        Rectangle {
+          anchors.fill: parent
+          radius: Math.min(width, height) / 2
+          color: slot.moduleSettings.color || root.barForeground
+          opacity: root.groupHighlight
+        }
+
+        // the pill counts as the group, so crossing the gap between the icon
+        // and its members does not close it
+        HoverHandler {
+          onHoveredChanged: if (groupDrawer.isHandle) root.setGroupHovered(slot.handleOf, hovered)
+        }
+      }
+
+      Item {
+        x: root.vertical ? 0 : groupDrawer.clipStart
+        y: root.vertical ? groupDrawer.clipStart : 0
+        width: root.vertical ? groupDrawer.slotAcross : groupDrawer.reveal
+        height: root.vertical ? groupDrawer.reveal : groupDrawer.slotAcross
+        clip: true
+        // A closed drawer still has its members loaded, parked beside the
+        // handle and so over the neighbouring icons. Clipping does not stop
+        // them taking clicks there, so they must be hidden, not just clipped.
+        visible: slot.openT > 0.001
+
+        // the end nearest the handle stays put, so members slide out of it
+        Grid {
+          id: membersGrid
+          columns: root.vertical ? 1 : Math.max(1, memberRepeater.count)
+          spacing: root.hoverModuleGap
+          x: root.vertical ? 0 : (groupDrawer.backwards ? groupDrawer.reveal - groupDrawer.natural : 0)
+          y: root.vertical ? (groupDrawer.backwards ? groupDrawer.reveal - groupDrawer.natural : 0) : 0
+
+          Repeater {
+            id: memberRepeater
+            // nearest the handle first, whichever way the drawer opens
+            model: groupDrawer.isHandle
+              ? (groupDrawer.backwards ? groupDrawer.members.slice().reverse() : groupDrawer.members)
+              : []
+
+            // not a ModuleSlot directly: an inline component cannot contain
+            // itself, so the slot is made from a component held by the bar
+            Loader {
+              required property var modelData
+              // fully open: every member; just peeking: only the ones that changed
+              visible: root.openGroups[slot.handleOf] === true || root.peeks[slot.handleOf + "|" + modelData.id] !== undefined
+              property var memberEntry: modelData
+              property string memberRegion: slot.region
+              sourceComponent: root.memberSlotComponent
+            }
+          }
+        }
+      }
+    }
+
     Item {
       id: hoverGlow
       readonly property real groupIconSize: 30
