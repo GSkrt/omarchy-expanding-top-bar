@@ -48,6 +48,24 @@ closed group for a few seconds. Everything is off until you enable it, and all
 of it is stored under `bar` in `shell.json`. See [docs/UI-GUIDE.md](docs/UI-GUIDE.md)
 for the keys and for how to work on the UI.
 
+![Icon groups: a group opens over its neighbours, switches to another, and an icon pops out when its status changes](docs/groups-demo.gif)
+
+
+## Contributing and changing the graphics
+
+Work happens on the `develop` branch; `master` is what users install.
+
+- **Get the code and send changes back** (fork, branch, pull request, and what to
+  do without write access): [CONTRIBUTING.md](CONTRIBUTING.md)
+- **Change the UI by hand** (which file draws what, settings keys, restart and
+  log workflow, common mistakes): [docs/UI-GUIDE.md](docs/UI-GUIDE.md)
+- **Add or improve group icons** (where the SVGs go, how to register them, drawing
+  rules): [icons/README.md](icons/README.md)
+- **Test your change** (full manual checklist): [docs/TESTING.md](docs/TESTING.md)
+- **Design background**: [proposal](docs/PROPOSAL.md) and
+  [UI draft](docs/UI-DRAFT.md)
+- **Open tasks**: [TODO.md](TODO.md)
+
 ## Install
 
 ```bash
