@@ -215,6 +215,9 @@ mention it in [PROPOSAL.md](PROPOSAL.md) in the same PR.
 
 ## 7. Checklist before opening a PR
 
+The full test pass is in [TESTING.md](TESTING.md); run the sections your change touches.
+
+
 - [ ] Works on a top bar and on a left bar
 - [ ] Works in a light and a dark theme (switch themes, no hardcoded colors)
 - [ ] Hover in, hover out, and sweeping across without resting all look right

@@ -1,6 +1,6 @@
 # TODO
 
-Details: [proposal](docs/PROPOSAL.md) · [UI guide](docs/UI-GUIDE.md) · [UI draft](docs/UI-DRAFT.md)
+Details: [testing](docs/TESTING.md) · [proposal](docs/PROPOSAL.md) · [UI guide](docs/UI-GUIDE.md) · [UI draft](docs/UI-DRAFT.md)
 
 ## Settings icon
 
@@ -42,3 +42,4 @@ Details: [proposal](docs/PROPOSAL.md) · [UI guide](docs/UI-GUIDE.md) · [UI dra
 - [ ] Theme-aware SVG tint (icons are a fixed light gray today)
 - [ ] Review the designer window layout (icon row, color row, Status/Quiet zones)
 - [ ] Decide whether an open drawer may cover other group icons (alternative: open away from them)
+- [ ] Run the full pass in `docs/TESTING.md` and report the **(unverified)** items
