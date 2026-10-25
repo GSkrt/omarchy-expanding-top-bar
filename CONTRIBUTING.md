@@ -14,6 +14,9 @@ How to get the code, work on it, and send it back. Read
   maintainer.
 - Small, focused pull requests are easier to review and easier to undo.
 
+Only want to **try** the development version, not change it? See "Try the development
+version" in the [README](README.md).
+
 ## Do I have write access?
 
 The repository is public, so anyone can clone and pull it. Only people the

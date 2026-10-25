@@ -12,6 +12,9 @@ have never been run, so a failure there is useful news, not a surprise.
 
 ## 0. Setup
 
+Not a contributor? Install the development version with the steps in the README
+section "Try the development version", then continue below. Contributors:
+
 ```bash
 git checkout develop && git pull
 cp ~/.config/omarchy/shell.json ~/shell.json.backup     # your way back

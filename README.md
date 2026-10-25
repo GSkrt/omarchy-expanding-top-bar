@@ -76,6 +76,57 @@ This clones the plugin into
 `~/.config/omarchy/plugins/io.github.gskrt.expanding-top-bar/` and switches
 your bar to it.
 
+## Try the development version
+
+The `develop` branch has features that are not released yet (settings icon, icon
+groups, the group designer). It is meant for testers and contributors, and it may
+break. Back up your config first:
+
+```bash
+cp ~/.config/omarchy/shell.json ~/shell.json.backup
+```
+
+`omarchy plugin add` always installs the default branch, so install first and
+then switch the plugin folder to `develop`:
+
+```bash
+# not installed yet
+omarchy plugin add https://github.com/GSkrt/omarchy-expanding-top-bar.git --enable
+git -C ~/.config/omarchy/plugins/io.github.gskrt.expanding-top-bar checkout develop
+omarchy-restart-shell
+```
+
+```bash
+# already installed (the stable version)
+git -C ~/.config/omarchy/plugins/io.github.gskrt.expanding-top-bar checkout develop
+git -C ~/.config/omarchy/plugins/io.github.gskrt.expanding-top-bar pull
+omarchy-restart-shell
+```
+
+Get later changes with `git pull` and a restart, **not** `omarchy plugin update`,
+which follows the default branch:
+
+```bash
+git -C ~/.config/omarchy/plugins/io.github.gskrt.expanding-top-bar pull
+omarchy-restart-shell
+```
+
+Go back to the stable version:
+
+```bash
+git -C ~/.config/omarchy/plugins/io.github.gskrt.expanding-top-bar checkout master
+git -C ~/.config/omarchy/plugins/io.github.gskrt.expanding-top-bar pull
+omarchy-restart-shell
+```
+
+A QML change needs a shell **restart**; a config reload is not enough. If the bar
+turns into the stock Omarchy bar, there is an error in the plugin: see
+[docs/UI-GUIDE.md](docs/UI-GUIDE.md) section 1. The new settings are stored
+under `bar` in `shell.json`; the stable version ignores keys it does not know, so
+switching back is safe. Then follow [docs/TESTING.md](docs/TESTING.md) and report
+what you find. If you want to change the code, use the clone setup in
+[CONTRIBUTING.md](CONTRIBUTING.md) instead.
+
 ## Remove
 
 To switch back to the stock bar and delete this plugin:
